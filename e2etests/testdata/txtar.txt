@@ -181,3 +181,35 @@ vars: {
 }
 a.style.fill-pattern: none
 b
+
+-- width-smaller-than-label --
+b: hello there cat {
+  shape: person
+  width: 64
+  height: 66
+}
+
+-- width-smaller-than-label-custom-pos --
+x: {
+  width: 20
+  label: long label
+  label.near: center-center
+}
+
+-- nested-spread-substitutions-regression --
+vars: {
+  dog1: Frido {
+    shape: circle
+  }
+  my-house: {
+    label: "Home"
+  }
+}
+
+ok: {
+  ...${my-house}
+  dog1: {
+    ...${dog1}
+  }
+  dog1 -> dog3
+}
