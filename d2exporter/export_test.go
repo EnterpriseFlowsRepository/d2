@@ -2,11 +2,10 @@ package d2exporter_test
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"cdr.dev/slog"
 
 	tassert "github.com/stretchr/testify/assert"
 
@@ -40,6 +39,7 @@ func TestExport(t *testing.T) {
 	t.Run("connection", testConnection)
 	t.Run("label", testLabel)
 	t.Run("theme", testTheme)
+	t.Run("legend", testLegend)
 }
 
 func testShape(t *testing.T) {
@@ -205,6 +205,30 @@ func testTheme(t *testing.T) {
 	runa(t, tcs)
 }
 
+func testLegend(t *testing.T) {
+	tcs := []testCase{
+		{
+			name: "basic_legend",
+			dsl: `vars: {
+  d2-legend: {
+    legend: {
+      l1: Rectangles {shape: rectangle}
+      l2: Ovals {shape: oval}
+      l1 -> l2: Connection
+		}
+	}
+}
+x: {shape: rectangle}
+y: {shape: oval}
+x -> y: connects
+
+`,
+		},
+	}
+
+	runa(t, tcs)
+}
+
 func runa(t *testing.T, tcs []testCase) {
 	for _, tc := range tcs {
 		tc := tc
@@ -218,7 +242,7 @@ func runa(t *testing.T, tcs []testCase) {
 
 func run(t *testing.T, tc testCase) {
 	ctx := context.Background()
-	ctx = log.WithTB(ctx, t, nil)
+	ctx = log.WithTB(ctx, t)
 	ctx = log.Leveled(ctx, slog.LevelDebug)
 
 	g, config, err := d2compiler.Compile("", strings.NewReader(tc.dsl), &d2compiler.CompileOptions{
@@ -277,7 +301,7 @@ func run(t *testing.T, tc testCase) {
 // TestHashID tests that 2 diagrams with different theme configs do not equal each other
 func TestHashID(t *testing.T) {
 	ctx := context.Background()
-	ctx = log.WithTB(ctx, t, nil)
+	ctx = log.WithTB(ctx, t)
 	ctx = log.Leveled(ctx, slog.LevelDebug)
 
 	aString := `
@@ -304,10 +328,10 @@ a -> b
 	db, err := compile(ctx, bString)
 	assert.JSON(t, nil, err)
 
-	hashA, err := da.HashID()
+	hashA, err := da.HashID(nil)
 	assert.JSON(t, nil, err)
 
-	hashB, err := db.HashID()
+	hashB, err := db.HashID(nil)
 	assert.JSON(t, nil, err)
 
 	assert.NotEqual(t, hashA, hashB)

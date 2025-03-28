@@ -42,6 +42,12 @@ func (p *printer) node(n d2ast.Node) {
 		p.blockComment(n)
 	case *d2ast.Null:
 		p.sb.WriteString("null")
+	case *d2ast.Suspension:
+		if n.Value {
+			p.sb.WriteString("suspend")
+		} else {
+			p.sb.WriteString("unsuspend")
+		}
 	case *d2ast.Boolean:
 		p.sb.WriteString(strconv.FormatBool(n.Value))
 	case *d2ast.Number:
@@ -121,7 +127,7 @@ func (p *printer) blockComment(bc *d2ast.BlockComment) {
 }
 
 func (p *printer) interpolationBoxes(boxes []d2ast.InterpolationBox, isDoubleString bool) {
-	for _, b := range boxes {
+	for i, b := range boxes {
 		if b.Substitution != nil {
 			p.substitution(b.Substitution)
 			continue
@@ -134,6 +140,17 @@ func (p *printer) interpolationBoxes(boxes []d2ast.InterpolationBox, isDoubleStr
 				s = escapeUnquotedValue(*b.String, p.inKey)
 			}
 			b.StringRaw = &s
+		} else if i > 0 && boxes[i-1].Substitution != nil {
+			// If this string follows a substitution, we need to make sure to use
+			// the actual string content, not the raw value which might be incorrect
+			s := *b.String
+			b.StringRaw = &s
+		}
+		if !isDoubleString {
+			if _, ok := d2ast.ReservedKeywords[strings.ToLower(*b.StringRaw)]; ok {
+				s := strings.ToLower(*b.StringRaw)
+				b.StringRaw = &s
+			}
 		}
 		p.sb.WriteString(*b.StringRaw)
 	}
@@ -287,11 +304,18 @@ func (p *printer) _map(m *d2ast.Map) {
 		if nb.IsBoardNode() {
 			switch nb.MapKey.Key.Path[0].Unbox().ScalarString() {
 			case "layers":
-				layerNodes = append(layerNodes, nb)
+				// remove useless
+				if nb.MapKey.Value.Map != nil && len(nb.MapKey.Value.Map.Nodes) > 0 {
+					layerNodes = append(layerNodes, nb)
+				}
 			case "scenarios":
-				scenarioNodes = append(scenarioNodes, nb)
+				if nb.MapKey.Value.Map != nil && len(nb.MapKey.Value.Map.Nodes) > 0 {
+					scenarioNodes = append(scenarioNodes, nb)
+				}
 			case "steps":
-				stepNodes = append(stepNodes, nb)
+				if nb.MapKey.Value.Map != nil && len(nb.MapKey.Value.Map.Nodes) > 0 {
+					stepNodes = append(stepNodes, nb)
+				}
 			}
 			prev = n
 			continue
@@ -333,12 +357,14 @@ func (p *printer) _map(m *d2ast.Map) {
 		n := boards[i].Unbox()
 		// if this board is the very first line of the file, don't add an extra newline
 		if n.GetRange().Start.Line != 0 {
-			p.newline()
+			p.sb.WriteByte('\n')
 		}
 		// if scope only has boards, don't newline the first board
 		if i != 0 || len(m.Nodes) > len(boards) {
-			p.newline()
+			p.sb.WriteByte('\n')
 		}
+
+		p.sb.WriteString(p.indentStr)
 		p.node(n)
 		prev = n
 	}
@@ -357,6 +383,9 @@ func (p *printer) _map(m *d2ast.Map) {
 
 func (p *printer) mapKey(mk *d2ast.Key) {
 	if mk.Ampersand {
+		p.sb.WriteByte('&')
+	} else if mk.NotAmpersand {
+		p.sb.WriteByte('!')
 		p.sb.WriteByte('&')
 	}
 	if mk.Key != nil {
