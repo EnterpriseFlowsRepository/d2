@@ -484,7 +484,7 @@ func (c *compiler) ampersandFilterMap(dst *Map, ast, scopeAST *d2ast.Map) bool {
 					return false
 				}
 				var ks string
-				if gctx.refctx.Key.HasMultiGlob() {
+				if gctx.refctx.Key.HasTripleGlob() {
 					ks = d2format.Format(d2ast.MakeKeyPathString(IDA(dst)))
 				} else {
 					ks = d2format.Format(d2ast.MakeKeyPathString(BoardIDA(dst)))
@@ -516,7 +516,7 @@ func (c *compiler) compileMap(dst *Map, ast, scopeAST *d2ast.Map) {
 			for _, g := range previousGlobs {
 				gctx2 := g.copy()
 				gctx2.refctx.ScopeMap = dst
-				if !g.refctx.Key.HasMultiGlob() {
+				if !g.refctx.Key.HasTripleGlob() {
 					// Triple globs already apply independently to each board
 					gctx2.copyApplied(g)
 				}
@@ -528,7 +528,7 @@ func (c *compiler) compileMap(dst *Map, ast, scopeAST *d2ast.Map) {
 				// We don't want globs applied in a given scenario to affect future boards
 				// Copying the applied fields and edges keeps the applications scoped to this board
 				// Note that this is different from steps, where applications carry over
-				if !g.refctx.Key.HasMultiGlob() {
+				if !g.refctx.Key.HasTripleGlob() {
 					// Triple globs already apply independently to each board
 					g2.copyApplied(g)
 				}
@@ -755,6 +755,13 @@ func (c *compiler) ampersandFilter(refctx *RefContext) bool {
 			return false
 		}
 
+		secondPart := keyPath.Path[1].Unbox().ScalarString()
+		value := refctx.Key.Value.ScalarBox().Unbox().ScalarString()
+
+		if len(keyPath.Path) == 2 && c._ampersandPropertyFilter(secondPart, value, node, refctx.Key) {
+			return true
+		}
+
 		propKeyPath := &d2ast.KeyPath{
 			Path: keyPath.Path[1:],
 		}
@@ -789,7 +796,7 @@ func (c *compiler) ampersandFilter(refctx *RefContext) bool {
 		return false
 	}
 	if len(fa) == 0 {
-		if refctx.Key.Value.ScalarBox().Unbox().ScalarString() == "*" {
+		if refctx.Key.Value.ScalarBox().Unbox() != nil && refctx.Key.Value.ScalarBox().Unbox().ScalarString() == "*" {
 			return false
 		}
 		// The field/edge has no value for this filter
@@ -840,33 +847,7 @@ func (c *compiler) ampersandFilter(refctx *RefContext) bool {
 				},
 			}
 			return c._ampersandFilter(f, refctx)
-		case "leaf":
-			raw := refctx.Key.Value.ScalarBox().Unbox().ScalarString()
-			boolVal, err := strconv.ParseBool(raw)
-			if err != nil {
-				c.errorf(refctx.Key, `&leaf must be "true" or "false", got %q`, raw)
-				return false
-			}
 
-			f := refctx.ScopeMap.Parent().(*Field)
-			isLeaf := f.Map() == nil || !f.Map().IsContainer()
-			return isLeaf == boolVal
-		case "connected":
-			raw := refctx.Key.Value.ScalarBox().Unbox().ScalarString()
-			boolVal, err := strconv.ParseBool(raw)
-			if err != nil {
-				c.errorf(refctx.Key, `&connected must be "true" or "false", got %q`, raw)
-				return false
-			}
-			f := refctx.ScopeMap.Parent().(*Field)
-			isConnected := false
-			for _, r := range f.References {
-				if r.InEdge() {
-					isConnected = true
-					break
-				}
-			}
-			return isConnected == boolVal
 		case "label":
 			f := &Field{}
 			n := refctx.ScopeMap.Parent()
@@ -958,6 +939,12 @@ func (c *compiler) ampersandFilter(refctx *RefContext) bool {
 
 			return dstPath == filterValue
 		default:
+			parent := refctx.ScopeMap.Parent()
+			if field, ok := parent.(*Field); ok {
+				propName := refctx.Key.Key.Last().ScalarString()
+				value := refctx.Key.Value.ScalarBox().Unbox().ScalarString()
+				return c._ampersandPropertyFilter(propName, value, field, refctx.Key)
+			}
 			return false
 		}
 	}
@@ -968,6 +955,70 @@ func (c *compiler) ampersandFilter(refctx *RefContext) bool {
 		}
 	}
 	return true
+}
+
+// handles filters that are not based on fields
+func (c *compiler) _ampersandPropertyFilter(propName string, value string, node *Field, key *d2ast.Key) bool {
+	switch propName {
+	case "level":
+		levelVal, err := strconv.Atoi(value)
+		if err != nil {
+			c.errorf(key, `&level must be a non-negative integer, got %q`, value)
+			return false
+		}
+		if levelVal < 0 {
+			c.errorf(key, `&level must be a non-negative integer, got %d`, levelVal)
+			return false
+		}
+
+		level := 0
+		parent := ParentField(node)
+		for parent != nil && parent.Name.ScalarString() != "root" && NodeBoardKind(parent) == "" {
+			level++
+			parent = ParentField(parent)
+		}
+		return level == levelVal
+	case "leaf":
+		boolVal, err := strconv.ParseBool(value)
+		if err != nil {
+			c.errorf(key, `&leaf must be "true" or "false", got %q`, value)
+			return false
+		}
+		isLeaf := node.Map() == nil || !c.IsContainer(node.Map())
+		return isLeaf == boolVal
+	case "connected":
+		boolVal, err := strconv.ParseBool(value)
+		if err != nil {
+			c.errorf(key, `&connected must be "true" or "false", got %q`, value)
+			return false
+		}
+		isConnected := false
+		for _, r := range node.References {
+			if r.InEdge() {
+				isConnected = true
+				break
+			}
+		}
+		return isConnected == boolVal
+	case "label":
+		f := &Field{}
+		if node.Primary() == nil {
+			f.Primary_ = &Scalar{
+				Value: node.Name,
+			}
+		} else {
+			f.Primary_ = node.Primary()
+		}
+		propKey := &d2ast.Key{
+			Key:   key.Key,
+			Value: key.Value,
+		}
+		propRefCtx := &RefContext{
+			Key: propKey,
+		}
+		return c._ampersandFilter(f, propRefCtx)
+	}
+	return false
 }
 
 func (c *compiler) _ampersandFilter(f *Field, refctx *RefContext) bool {

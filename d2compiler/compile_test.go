@@ -1715,6 +1715,68 @@ steps: {
 			},
 		},
 		{
+			name: "composite-glob-filter",
+
+			text: `
+*: {
+  &shape: [a; b]
+}
+k
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/composite-glob-filter.d2:3:3: glob filters cannot be composites
+d2/testdata/d2compiler/TestCompile/composite-glob-filter.d2:3:3: glob filters cannot be composites`,
+		},
+		{
+			name: "imported-glob-leaf-filter",
+
+			text: `
+***: {
+  &leaf: true
+  style: {
+    font-size: 30
+  }
+}
+a: {
+	...@x
+}
+`,
+			files: map[string]string{
+				"x.d2": `
+b
+`,
+			},
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.Equal(t, 2, len(g.Objects))
+				assert.Equal(t, "b", g.Objects[0].Label.Value)
+				assert.Equal(t, "a", g.Objects[1].Label.Value)
+				assert.Equal(t, "30", g.Objects[0].Style.FontSize.Value)
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[1].Style.FontSize)
+			},
+		},
+		{
+			name: "import-nested-var",
+
+			text: `...@models.environment
+`,
+			files: map[string]string{
+				"models.d2": `
+vars: {
+  c: {
+    k
+  }
+}
+
+environment: {
+  ...${c}
+}
+`,
+			},
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.Equal(t, 1, len(g.Objects))
+				assert.Equal(t, "k", g.Objects[0].AbsID())
+			},
+		},
+		{
 			name: "import-connections",
 
 			text: `b.c -> b.d
@@ -1765,6 +1827,25 @@ k: {
 			assertions: func(t *testing.T, g *d2graph.Graph) {
 				assert.Equal(t, "c", g.Objects[2].Label.Value)
 				assert.Equal(t, "red", g.Objects[2].Style.Fill.Value)
+			},
+		},
+		{
+			name: "scenario-glob",
+
+			text: `**.style.opacity: 0.2
+x.style.opacity: 1
+z
+
+scenarios: {
+  y: {
+    z.style.opacity: 1
+  }
+}
+
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				assert.Equal(t, "x", g.Scenarios[0].Objects[0].ID)
+				assert.Equal(t, "1", g.Scenarios[0].Objects[0].Style.Opacity.Value)
 			},
 		},
 		{
@@ -2992,6 +3073,52 @@ obj {
 			},
 		},
 		{
+			name: "tooltip-near-parent",
+			text: `hey: sushi {
+	tooltip.near: top-left
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, "sushi", g.Objects[0].Attributes.Label.Value)
+				tassert.Equal(t, "top-left", g.Objects[0].Attributes.TooltipPosition.Value)
+			},
+		},
+		{
+			name: "tooltip-near-composite-separate",
+			text: `hey: {
+	tooltip: hover text
+	tooltip.near: bottom-right
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, "hover text", g.Objects[0].Attributes.Tooltip.Value)
+				tassert.Equal(t, "bottom-right", g.Objects[0].Attributes.TooltipPosition.Value)
+			},
+		},
+		{
+			name: "tooltip-near-composite-together",
+			text: `hey: {
+	tooltip: hover text {
+		near: center-left
+  }
+}
+`,
+			assertions: func(t *testing.T, g *d2graph.Graph) {
+				tassert.Equal(t, "hover text", g.Objects[0].Attributes.Tooltip.Value)
+				tassert.Equal(t, "center-left", g.Objects[0].Attributes.TooltipPosition.Value)
+			},
+		},
+		{
+			name: "tooltip-near-invalid",
+			text: `hey: {
+	tooltip: hover text {
+		near: outside-top-left
+  }
+}
+`,
+			expErr: `d2/testdata/d2compiler/TestCompile/tooltip-near-invalid.d2:3:3: invalid "near" field`,
+		},
+		{
 			name: "label-near-invalid-edge",
 			text: `hey: {
   label: sushi {
@@ -3893,6 +4020,14 @@ svc_1.t2 -> b: do with B
 				tassert.Equal(t, "d2/testdata/d2compiler/TestCompile/layer-import-nested-layer.d2", g.Layers[0].AST.Range.Path)
 				tassert.Equal(t, "d2/testdata/d2compiler/TestCompile/meow.d2", g.Layers[0].Layers[0].AST.Range.Path)
 			},
+		},
+		{
+			name: "invalid_gradient_color_stop",
+			text: `
+				x
+				x.style.fill: "linear-gradient(#ggg, #000)"
+			`,
+			expErr: `d2/testdata/d2compiler/TestCompile/invalid_gradient_color_stop.d2:3:19: expected "fill" to be a valid named color ("orange"), a hex code ("#f0ff3a"), or a gradient ("linear-gradient(red, blue)")`,
 		},
 	}
 
@@ -5642,6 +5777,53 @@ d: {
 			},
 		},
 		{
+			name: "level-filter",
+			run: func(t *testing.T) {
+				g, _ := assertCompile(t, `
+**: {
+  &level: 0
+  style.fill: red
+}
+**: {
+  &level: 1
+  style.stroke: yellow
+}
+(** -> **)[*]: {
+  &src.level: 0
+  &dst.level: 0
+  style.stroke: blue
+}
+a.b.c
+
+x -> y
+a: {
+  1 -> 2
+}
+a.1 -> x
+`, ``)
+				assert.Equal(t, "a", g.Objects[0].ID)
+				assert.Equal(t, "red", g.Objects[0].Attributes.Style.Fill.Value)
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[0].Attributes.Style.Stroke)
+
+				assert.Equal(t, "b", g.Objects[1].ID)
+				assert.Equal(t, "yellow", g.Objects[1].Attributes.Style.Stroke.Value)
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[1].Attributes.Style.Fill)
+
+				assert.Equal(t, "c", g.Objects[2].ID)
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[2].Attributes.Style.Fill)
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[2].Attributes.Style.Stroke)
+
+				assert.Equal(t, "(x -> y)[0]", g.Edges[0].AbsID())
+				assert.Equal(t, "blue", g.Edges[0].Attributes.Style.Stroke.Value)
+
+				assert.Equal(t, "a.(1 -> 2)[0]", g.Edges[1].AbsID())
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Edges[1].Attributes.Style.Stroke)
+
+				assert.Equal(t, "(a.1 -> x)[0]", g.Edges[2].AbsID())
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Edges[2].Attributes.Style.Stroke)
+			},
+		},
+		{
 			name: "connected-filter",
 			run: func(t *testing.T) {
 				g, _ := assertCompile(t, `
@@ -5658,6 +5840,37 @@ c
 				assert.Equal(t, "red", g.Objects[1].Attributes.Style.Fill.Value)
 				assert.Equal(t, "c", g.Objects[2].ID)
 				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[2].Attributes.Style.Fill)
+			},
+		},
+		{
+			name: "and-filter",
+			run: func(t *testing.T) {
+				g, _ := assertCompile(t, `
+*: {
+  &shape: person
+  &connected: true
+  style.fill: red
+}
+(** -> **)[*]: {
+  &src: a
+  &dst: c
+  style.stroke: yellow
+}
+a -> b
+a.shape: person
+a -> c
+`, ``)
+				assert.Equal(t, "a", g.Objects[0].ID)
+				assert.Equal(t, "red", g.Objects[0].Attributes.Style.Fill.Value)
+				assert.Equal(t, "b", g.Objects[1].ID)
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[1].Attributes.Style.Fill)
+				assert.Equal(t, "c", g.Objects[2].ID)
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Objects[2].Attributes.Style.Fill)
+
+				assert.Equal(t, "(a -> b)[0]", g.Edges[0].AbsID())
+				assert.Equal(t, (*d2graph.Scalar)(nil), g.Edges[0].Attributes.Style.Stroke)
+				assert.Equal(t, "(a -> c)[0]", g.Edges[1].AbsID())
+				assert.Equal(t, "yellow", g.Edges[1].Attributes.Style.Stroke.Value)
 			},
 		},
 		{
@@ -5855,6 +6068,32 @@ c
 				assert.Equal(t, 2, len(g.Objects))
 				assert.Equal(t, 1, len(g.Edges))
 				assert.Equal(t, "hello", g.Edges[0].Label.Value)
+			},
+		},
+		{
+			name: "glob-edge-filter",
+			run: func(t *testing.T) {
+				g, _ := assertCompile(t, `
+x -> y: {class: foo}
+a -> b
+
+
+(** -> **)[*]: {
+  &class: foo
+  source-arrowhead: 1
+  target-arrowhead: * {
+    shape: diamond
+  }
+}
+`, ``)
+				assert.Equal(t, 2, len(g.Edges))
+				assert.Equal(t, "(x -> y)[0]", g.Edges[0].AbsID())
+				assert.Equal(t, "(a -> b)[0]", g.Edges[1].AbsID())
+				assert.Equal(t, "1", g.Edges[0].SrcArrowhead.Label.Value)
+				assert.Equal(t, (*d2graph.Attributes)(nil), g.Edges[1].SrcArrowhead)
+				assert.Equal(t, "diamond", g.Edges[0].DstArrowhead.Shape.Value)
+				assert.Equal(t, "*", g.Edges[0].DstArrowhead.Label.Value)
+				assert.Equal(t, (*d2graph.Attributes)(nil), g.Edges[1].DstArrowhead)
 			},
 		},
 		{

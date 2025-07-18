@@ -194,6 +194,9 @@ func applyStyles(shape *d2target.Shape, obj *d2graph.Object) {
 	if obj.Style.DoubleBorder != nil {
 		shape.DoubleBorder, _ = strconv.ParseBool(obj.Style.DoubleBorder.Value)
 	}
+	if obj.IconStyle.BorderRadius != nil {
+		shape.IconBorderRadius, _ = strconv.Atoi(obj.IconStyle.BorderRadius.Value)
+	}
 }
 
 func toShape(obj *d2graph.Object, g *d2graph.Graph) d2target.Shape {
@@ -262,6 +265,9 @@ func toShape(obj *d2graph.Object, g *d2graph.Graph) d2target.Shape {
 
 	if obj.Tooltip != nil {
 		shape.Tooltip = obj.Tooltip.Value
+	}
+	if obj.TooltipPosition != nil {
+		shape.TooltipPosition = obj.TooltipPosition.Value
 	}
 	if obj.Style.Animated != nil {
 		shape.Animated, _ = strconv.ParseBool(obj.Style.Animated.Value)
@@ -413,6 +419,10 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 		}
 	}
 
+	if edge.IconStyle.BorderRadius != nil {
+		connection.IconBorderRadius, _ = strconv.ParseFloat(edge.IconStyle.BorderRadius.Value, 64)
+	}
+
 	if edge.Style.Italic != nil {
 		connection.Italic, _ = strconv.ParseBool(edge.Style.Italic.Value)
 	}
@@ -439,6 +449,7 @@ func toConnection(edge *d2graph.Edge, theme *d2themes.Theme) d2target.Connection
 	connection.Label = text.Text
 	connection.LabelWidth = text.Dimensions.Width
 	connection.LabelHeight = text.Dimensions.Height
+	connection.Language = edge.Language
 
 	if edge.LabelPosition != nil {
 		connection.LabelPosition = *edge.LabelPosition

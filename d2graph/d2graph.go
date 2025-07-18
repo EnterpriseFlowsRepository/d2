@@ -196,10 +196,11 @@ type Attributes struct {
 	Label           Scalar                  `json:"label"`
 	LabelDimensions d2target.TextDimensions `json:"labelDimensions"`
 
-	Style   Style    `json:"style"`
-	Icon    *url.URL `json:"icon,omitempty"`
-	Tooltip *Scalar  `json:"tooltip,omitempty"`
-	Link    *Scalar  `json:"link,omitempty"`
+	Style     Style    `json:"style"`
+	Icon      *url.URL `json:"icon,omitempty"`
+	IconStyle Style    `json:"iconStyle"`
+	Tooltip   *Scalar  `json:"tooltip,omitempty"`
+	Link      *Scalar  `json:"link,omitempty"`
 
 	WidthAttr  *Scalar `json:"width,omitempty"`
 	HeightAttr *Scalar `json:"height,omitempty"`
@@ -223,8 +224,9 @@ type Attributes struct {
 	VerticalGap   *Scalar `json:"verticalGap,omitempty"`
 	HorizontalGap *Scalar `json:"horizontalGap,omitempty"`
 
-	LabelPosition *Scalar `json:"labelPosition,omitempty"`
-	IconPosition  *Scalar `json:"iconPosition,omitempty"`
+	LabelPosition   *Scalar `json:"labelPosition,omitempty"`
+	IconPosition    *Scalar `json:"iconPosition,omitempty"`
+	TooltipPosition *Scalar `json:"tooltipPosition,omitempty"`
 
 	// These names are attached to the rendered elements in SVG
 	// so that users can target them however they like outside of D2
@@ -1271,6 +1273,7 @@ func (e *Edge) Text() *d2target.MText {
 		FontSize: fontSize,
 		IsBold:   isBold,
 		IsItalic: true,
+		Language: e.Language,
 
 		Dimensions: e.LabelDimensions,
 	}
@@ -1648,7 +1651,22 @@ func (g *Graph) SetDimensions(mtexts []*d2target.MText, ruler *textmeasure.Ruler
 		}
 		edge.ApplyTextTransform()
 
-		dims := GetTextDimensions(mtexts, ruler, edge.Text(), usedFont)
+		var dims *d2target.TextDimensions
+		if edge.Language == "latex" {
+			width, height, err := d2latex.Measure(edge.Text().Text)
+			if err != nil {
+				return err
+			}
+			dims = d2target.NewTextDimensions(width, height)
+		} else if edge.Language == "markdown" {
+			var err error
+			dims, err = getMarkdownDimensions(mtexts, ruler, edge.Text(), usedFont)
+			if err != nil {
+				return err
+			}
+		} else {
+			dims = GetTextDimensions(mtexts, ruler, edge.Text(), usedFont)
+		}
 		if dims == nil {
 			return fmt.Errorf("dimensions for edge label %#v not found", edge.Text())
 		}
