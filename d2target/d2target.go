@@ -80,9 +80,10 @@ type Diagram struct {
 	Name   string  `json:"name"`
 	Config *Config `json:"config,omitempty"`
 	// See docs on the same field in d2graph to understand what it means.
-	IsFolderOnly bool                `json:"isFolderOnly"`
-	Description  string              `json:"description,omitempty"`
-	FontFamily   *d2fonts.FontFamily `json:"fontFamily,omitempty"`
+	IsFolderOnly   bool                `json:"isFolderOnly"`
+	Description    string              `json:"description,omitempty"`
+	FontFamily     *d2fonts.FontFamily `json:"fontFamily,omitempty"`
+	MonoFontFamily *d2fonts.FontFamily `json:"monoFontFamily,omitempty"`
 
 	Shapes      []Shape      `json:"shapes"`
 	Connections []Connection `json:"connections"`
@@ -97,6 +98,7 @@ type Diagram struct {
 }
 
 type Legend struct {
+	Label       string       `json:"label,omitempty"`
 	Shapes      []Shape      `json:"shapes,omitempty"`
 	Connections []Connection `json:"connections,omitempty"`
 }
@@ -460,7 +462,7 @@ func calculateTooltipBounds(targetShape Shape) (minX, minY, maxX, maxY int) {
 			fontFamily = &ff
 		}
 
-		width, height, err := textmeasure.MeasureMarkdown(targetShape.Tooltip, ruler, fontFamily, targetShape.FontSize)
+		width, height, err := textmeasure.MeasureMarkdown(targetShape.Tooltip, ruler, fontFamily, nil, targetShape.FontSize)
 		if err != nil {
 			textLength := len(targetShape.Tooltip)
 			tooltipWidth = go2.Min(textLength*8+20, 200)
@@ -545,7 +547,11 @@ func (diagram Diagram) GetCorpus() string {
 	}
 
 	if diagram.Legend != nil {
-		corpus += "Legend"
+		if diagram.Legend.Label != "" {
+			corpus += diagram.Legend.Label
+		} else {
+			corpus += "Legend"
+		}
 		for _, s := range diagram.Legend.Shapes {
 			corpus += s.Label
 		}

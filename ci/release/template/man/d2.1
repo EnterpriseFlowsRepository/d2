@@ -10,7 +10,7 @@
 .Op Fl -theme Em 0
 .Op Fl -salt Ar string
 .Ar file.d2
-.Op Ar file.svg | file.png
+.Op Ar file.svg | file.png | file.pdf | file.pptx | file.gif | file.txt
 .Nm d2
 .Ar layout Op Ar name
 .Nm d2
@@ -27,6 +27,14 @@ to
 .Ar file.svg
 |
 .Ar file.png
+|
+.Ar file.pdf
+|
+.Ar file.pptx
+|
+.Ar file.gif
+|
+.Ar file.txt
 .Ns .
 .Pp
 It defaults to
@@ -97,6 +105,21 @@ Path to .ttf file to use for the italic font. If none provided, Source Sans Pro 
 .It Fl -font-bold
 Path to .ttf file to use for the bold font. If none provided, Source Sans Pro Bold is used
 .Ns .
+.It Fl -font-semibold
+Path to .ttf file to use for the semibold font. If none provided, Source Sans Pro Semibold is used
+.Ns .
+.It Fl -font-mono
+Path to .ttf file to use for the monospace font. If none provided, Source Code Pro Regular is used
+.Ns .
+.It Fl -font-mono-bold
+Path to .ttf file to use for the monospace bold font. If none provided, Source Code Pro Bold is used
+.Ns .
+.It Fl -font-mono-italic
+Path to .ttf file to use for the monospace italic font. If none provided, Source Code Pro Italic is used
+.Ns .
+.It Fl -font-mono-semibold
+Path to .ttf file to use for the monospace semibold font. If none provided, Source Code Pro Semibold is used
+.Ns .
 .It Fl -pad Ar 100
 Pixels padded around the rendered diagram
 .Ns .
@@ -143,13 +166,16 @@ Print usage information and exit
 Print version information and exit
 .Ns .
 .It Fl -stdout-format Ar string
-Set the output format when writing to stdout. Supported formats are: png, svg. Only used when output is set to stdout (-)
+Set the output format when writing to stdout. Supported formats are: png, svg, ascii, txt, pdf, pptx, gif. Only used when output is set to stdout (-)
 .Ns .
 .It Fl -no-xml-tag Ar false
 Omit XML tag (<?xml ...?>) from output SVG files. Useful when generating SVGs for direct HTML embedding
 .Ns .
 .It Fl -omit-version Ar false
 omit D2 version from generated image
+.Ns .
+.It Fl -ascii-mode Ar extended
+ASCII rendering mode for text outputs. Options: 'standard' (basic ASCII chars) or 'extended' (Unicode chars)
 .Ns .
 .El
 .Sh SUBCOMMANDS
@@ -199,12 +225,22 @@ See --font-italic flag.
 See --font-bold flag.
 .It Ev Sy D2_FONT_SEMIBOLD
 See --font-semibold flag.
+.It Ev Sy D2_FONT_MONO
+See --font-mono flag.
+.It Ev Sy D2_FONT_MONO_BOLD
+See --font-mono-bold flag.
+.It Ev Sy D2_FONT_MONO_ITALIC
+See --font-mono-italic flag.
+.It Ev Sy D2_FONT_MONO_SEMIBOLD
+See --font-mono-semibold flag.
 .It Ev Sy D2_ANIMATE_INTERVAL
 See --animate-interval flag.
 .It Ev Sy D2_TIMEOUT
 See --timeout flag.
 .It Ev Sy D2_CHECK
 See --check flag.
+.It Ev Sy D2_ASCII_MODE
+See --ascii-mode flag.
 .El
 .Bl -tag -width Ds
 .It Ev Sy DEBUG

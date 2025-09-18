@@ -20,6 +20,8 @@ import (
 	"oss.terrastruct.com/d2/d2oracle"
 	"oss.terrastruct.com/d2/d2parser"
 	"oss.terrastruct.com/d2/d2renderers/d2animate"
+	"oss.terrastruct.com/d2/d2renderers/d2ascii"
+	"oss.terrastruct.com/d2/d2renderers/d2ascii/charset"
 	"oss.terrastruct.com/d2/d2renderers/d2fonts"
 	"oss.terrastruct.com/d2/d2renderers/d2svg"
 	"oss.terrastruct.com/d2/d2renderers/d2svg/appendix"
@@ -29,6 +31,7 @@ import (
 	"oss.terrastruct.com/d2/lib/textmeasure"
 	"oss.terrastruct.com/d2/lib/urlenc"
 	"oss.terrastruct.com/d2/lib/version"
+	"oss.terrastruct.com/util-go/go2"
 )
 
 const DEFAULT_INPUT_PATH = "index"
@@ -151,7 +154,7 @@ func GetELKGraph(args []js.Value) (interface{}, error) {
 	if err != nil {
 		return nil, &WASMError{Message: fmt.Sprintf("text ruler cannot be initialized: %s", err.Error()), Code: 500}
 	}
-	err = g.SetDimensions(nil, ruler, nil)
+	err = g.SetDimensions(nil, ruler, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +245,12 @@ func Compile(args []js.Value) (interface{}, error) {
 		compileOpts.Layout = input.Opts.Layout
 	}
 
+	if input.Opts != nil && input.Opts.ASCII != nil && *input.Opts.ASCII {
+		if compileOpts.Layout == nil || *compileOpts.Layout == "dagre" {
+			compileOpts.Layout = go2.Pointer("elk")
+		}
+	}
+
 	renderOpts := &d2svg.RenderOpts{}
 	if input.Opts != nil && input.Opts.Sketch != nil {
 		renderOpts.Sketch = input.Opts.Sketch
@@ -280,17 +289,21 @@ func Compile(args []js.Value) (interface{}, error) {
 		Diagram:   *diagram,
 		Graph:     *g,
 		RenderOptions: RenderOptions{
-			ThemeID:         renderOpts.ThemeID,
-			DarkThemeID:     renderOpts.DarkThemeID,
-			Sketch:          renderOpts.Sketch,
-			Pad:             renderOpts.Pad,
-			Center:          renderOpts.Center,
-			Scale:           renderOpts.Scale,
-			ForceAppendix:   input.Opts.ForceAppendix,
-			Target:          input.Opts.Target,
-			AnimateInterval: input.Opts.AnimateInterval,
-			Salt:            input.Opts.Salt,
-			NoXMLTag:        input.Opts.NoXMLTag,
+			ThemeID:            renderOpts.ThemeID,
+			DarkThemeID:        renderOpts.DarkThemeID,
+			ThemeOverrides:     renderOpts.ThemeOverrides,
+			DarkThemeOverrides: renderOpts.DarkThemeOverrides,
+			Sketch:             renderOpts.Sketch,
+			Pad:                renderOpts.Pad,
+			Center:             renderOpts.Center,
+			Scale:              renderOpts.Scale,
+			ForceAppendix:      input.Opts.ForceAppendix,
+			Target:             input.Opts.Target,
+			AnimateInterval:    input.Opts.AnimateInterval,
+			Salt:               input.Opts.Salt,
+			NoXMLTag:           input.Opts.NoXMLTag,
+			ASCII:              input.Opts.ASCII,
+			ASCIIMode:          input.Opts.ASCIIMode,
 		},
 	}, nil
 }
@@ -382,11 +395,52 @@ func Render(args []js.Value) (interface{}, error) {
 	if input.Opts != nil && input.Opts.DarkThemeID != nil {
 		renderOpts.DarkThemeID = input.Opts.DarkThemeID
 	}
+	if input.Opts != nil && input.Opts.ThemeOverrides != nil {
+		renderOpts.ThemeOverrides = input.Opts.ThemeOverrides
+	}
+	if input.Opts != nil && input.Opts.DarkThemeOverrides != nil {
+		renderOpts.DarkThemeOverrides = input.Opts.DarkThemeOverrides
+	}
 	if input.Opts != nil && input.Opts.Scale != nil {
 		renderOpts.Scale = input.Opts.Scale
 	}
 	if input.Opts != nil && input.Opts.NoXMLTag != nil {
 		renderOpts.NoXMLTag = input.Opts.NoXMLTag
+	}
+
+	if input.Opts != nil && input.Opts.ASCII != nil && *input.Opts.ASCII {
+		if !noChildren && animateInterval > 0 {
+			return nil, &WASMError{Message: "ASCII rendering does not support multi-board animation", Code: 400}
+		}
+		if !noChildren {
+			return nil, &WASMError{Message: "ASCII rendering does not support multi-board targets", Code: 400}
+		}
+
+		ctx := log.WithDefault(context.Background())
+		artist := d2ascii.NewASCIIartist()
+		asciiOpts := &d2ascii.RenderOpts{}
+		if input.Opts.Scale != nil {
+			asciiOpts.Scale = input.Opts.Scale
+		}
+		// Set charset based on ASCII mode (default to "extended"/Unicode)
+		var charsetType charset.Type
+		asciiMode := "extended" // Default
+		if input.Opts.ASCIIMode != nil {
+			asciiMode = *input.Opts.ASCIIMode
+		}
+		switch asciiMode {
+		case "standard":
+			charsetType = charset.ASCII
+		default: // "extended" or any other value defaults to Unicode
+			charsetType = charset.Unicode
+		}
+		asciiOpts.Charset = charsetType
+
+		out, err := artist.Render(ctx, diagram, asciiOpts)
+		if err != nil {
+			return nil, &WASMError{Message: fmt.Sprintf("ASCII render failed: %s", err.Error()), Code: 500}
+		}
+		return out, nil
 	}
 
 	forceAppendix := input.Opts != nil && input.Opts.ForceAppendix != nil && *input.Opts.ForceAppendix
@@ -511,6 +565,14 @@ func Decode(args []js.Value) (interface{}, error) {
 
 func GetVersion(args []js.Value) (interface{}, error) {
 	return version.Version, nil
+}
+
+// Injected at build time
+// See d2js/js/ci/build.sh
+var jsVersion = "HEAD"
+
+func GetJSVersion(args []js.Value) (interface{}, error) {
+	return jsVersion, nil
 }
 
 func GetCompletions(args []js.Value) (interface{}, error) {

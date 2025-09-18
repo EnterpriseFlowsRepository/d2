@@ -10,6 +10,7 @@
   },
   "isFolderOnly": false,
   "fontFamily": "SourceSansPro",
+  "monoFontFamily": "SourceCodePro",
   "shapes": [
     {
       "id": "api-1",
@@ -477,6 +478,7 @@
     "level": 0
   },
   "legend": {
+    "label": "凡例",
     "shapes": [
       {
         "id": "a",

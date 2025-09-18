@@ -725,7 +725,7 @@ x: {
 
 			text: `
 			vars: {
-  d2-legend: {
+  d2-legend: "凡例"{
     User: "A person who interacts with the system" {
       shape: person
       style: {
@@ -760,6 +760,10 @@ user -> db: Uses
 				if g.Legend == nil {
 					t.Fatal("Expected Legend to be non-nil")
 					return
+				}
+
+				if g.Legend.Label != "凡例" {
+					t.Errorf("Expected label")
 				}
 
 				// 2. Verify the correct objects are in the legend
@@ -4210,9 +4214,16 @@ layers: {
     RJ
   }
 }
+
+scenarios: {
+  x: b {
+    k
+  }
+}
 `, "")
 				assert.Equal(t, "one", g.Layers[0].Root.Label.Value)
 				assert.Equal(t, "two", g.Layers[1].Root.Label.Value)
+				assert.Equal(t, "b", g.Scenarios[0].Root.Label.Value)
 			},
 		},
 		{

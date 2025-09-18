@@ -4,7 +4,23 @@ set -eu
 cd -- "$(dirname "$0")/.."
 
 cd ../..
-sh_c "GOOS=js GOARCH=wasm go build -ldflags='-s -w' -trimpath -o main.wasm ./d2js"
+if [ -n "${NPM_VERSION:-}" ]; then
+  JS_VERSION="$NPM_VERSION"
+else
+  JS_VERSION=$(awk -F'"' '/"version"/ {print $4}' ./d2js/js/package.json)
+fi
+sh_c "GOOS=js GOARCH=wasm go build -ldflags='-s -w -X oss.terrastruct.com/d2/d2js/d2wasm.jsVersion=${JS_VERSION}' -trimpath -o main.wasm ./d2js"
+
+if [ -n "${NPM_VERSION:-}" ]; then
+  # Optimize with wasm-opt if available
+  if command -v wasm-opt >/dev/null 2>&1; then
+    echo "Optimizing WASM with wasm-opt..."
+    sh_c "wasm-opt -Oz --enable-bulk-memory-opt main.wasm -o main.wasm"
+  else
+    echo "wasm-opt not found, skipping optimization (install with: brew install binaryen)"
+  fi
+fi
+
 sh_c "mv main.wasm ./d2js/js/wasm/d2.wasm"
 
 if [ ! -f ./d2js/js/wasm/d2.wasm ]; then

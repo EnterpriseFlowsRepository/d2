@@ -1,17 +1,17 @@
 #### Features 🚀
 
-- `cross` arrowhead shape is available [#2190](https://github.com/terrastruct/d2/pull/2190)
-- `style.underline` support for class fields and methods [#2544](https://github.com/terrastruct/d2/pull/2544)
-- markdown, latex, and code can be used as edge labels [#2545](https://github.com/terrastruct/d2/pull/2545)
-- border-x label positioning functionality [#2549](https://github.com/terrastruct/d2/pull/2549)
-- tooltips with `near` set always show even without hover [#2564](https://github.com/terrastruct/d2/pull/2564)
-
 #### Improvements 🧹
+
+- d2ascii:
+  - sql_table and uml class shapes are supported [#2623](https://github.com/terrastruct/d2/pull/2623)
+  - newlines are handled [#2626](https://github.com/terrastruct/d2/pull/2626)
+  - empty left columns are cropped [#2626](https://github.com/terrastruct/d2/pull/2626)
+- exports:
+  - Chromium download through CLI for PNG exports is prompted [#2655](https://github.com/terrastruct/d2/pull/2655)
 
 #### Bugfixes ⛑️
 
-- actors in sequence diagrams with labels and icons together no longer overlap, position keywords now work too [#2548](https://github.com/terrastruct/d2/pull/2548)
-- fix double glob behavior in scenarios (wasn't propagating correctly) [#2557](https://github.com/terrastruct/d2/pull/2557)
+- exports: pptx follows standards more closely, addressing warnings from some Powerpoint software [#2645](https://github.com/terrastruct/d2/pull/2645)
 
 ---
 

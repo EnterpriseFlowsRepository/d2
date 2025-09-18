@@ -1,9 +1,11 @@
 package png
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"strings"
 
 	_ "embed"
@@ -43,7 +45,17 @@ func (pw *Playwright) Cleanup() error {
 }
 
 func startPlaywright(pw *playwright.Playwright) (Playwright, error) {
-	browser, err := pw.Chromium.Launch()
+	// Optimizations for a very tightly scoped Playwright instance
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Args: []string{
+			"--no-sandbox",                             // Removes security overhead
+			"--disable-dev-shm-usage",                  // Prevents /dev/shm issues
+			"--disable-background-timer-throttling",    // Prevents CPU throttling
+			"--disable-backgrounding-occluded-windows", // Keeps rendering active
+			"--disable-features=TranslateUI",           // Reduces feature overhead
+			"--disable-ipc-flooding-protection",        // Removes IPC limits
+		},
+	})
 	if err != nil {
 		return Playwright{}, fmt.Errorf("failed to launch Chromium: %w", err)
 	}
@@ -76,6 +88,21 @@ func InitPlaywright() (Playwright, error) {
 		return Playwright{}, fmt.Errorf("failed to run Playwright: %w", err)
 	}
 	return startPlaywright(pw)
+}
+
+func InitPlaywrightWithPrompt() (Playwright, error) {
+	fmt.Print("D2 needs to install Chromium v130.0.6723.19 to render images. Continue? (y/N): ")
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return Playwright{}, fmt.Errorf("failed to read user input: %w", err)
+	}
+	response = strings.TrimSpace(strings.ToLower(response))
+	if response != "y" && response != "yes" {
+		return Playwright{}, fmt.Errorf("chromium installation cancelled by user")
+	}
+
+	return InitPlaywright()
 }
 
 //go:embed generate_png.js
